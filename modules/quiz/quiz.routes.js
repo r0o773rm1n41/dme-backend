@@ -211,7 +211,8 @@ router.get("/state/:quizDate", authRequired, async (req, res) => {
     };
     const etag = `"${attempt.updatedAt?.getTime() || Date.now()}-${payload.answeredCount}"`;
     res.set('ETag', etag);
-    res.set('Cache-Control', 'private, max-age=2');
+    // res.set('Cache-Control', 'private, max-age=2');
+    res.set('Cache-Control', 'no-store');
     if (req.get('If-None-Match') === etag) {
       return res.status(304).end();
     }
@@ -511,7 +512,8 @@ router.get("/status", quizStatusRateLimit, async (req, res) => {
     const state = quiz ? quiz.state : 'NO_QUIZ';
     const etag = `"${state}-${today}"`;
     res.set('ETag', etag);
-    res.set('Cache-Control', 'private, max-age=5');
+    // res.set('Cache-Control', 'private, max-age=5');
+    res.set('Cache-Control', 'no-store');
     res.set('X-Poll-Interval', '5');
     if (req.get('If-None-Match') === etag) return res.status(304).end();
     if (!quiz) {
