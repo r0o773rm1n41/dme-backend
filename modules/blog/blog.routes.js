@@ -7,6 +7,7 @@ import { blogListRateLimit, blogViewRateLimit, fileUploadRateLimit, writeRateLim
 import cloudinary from "../../config/cloudinary.js";
 import fetch from 'node-fetch';
 import { validate, blogSchemas } from "../../utils/validation.js";
+import QuizAttempt from "../quiz/quizAttempt.model.js"; // add at top
 
 const router = express.Router();
 
@@ -227,6 +228,53 @@ router.get("/user/me", authRequired, blogListRateLimit, async (req, res) => {
   }
 });
 
+// // Get blogs by user ID (public route for viewing other users' blogs)
+// router.get("/user/:userId", async (req, res) => {
+//   try {
+
+//     // inside the route
+// const quizzes = await QuizAttempt.find({ user: req.params.userId })
+//   .sort({ createdAt: -1 })  // latest first
+//   .select("_id quizDate score correctAnswers totalQuestions rank timeSpent")
+//   .lean();
+
+
+//     const page = parseInt(req.query.page) || 1;
+//     const limit = parseInt(req.query.limit) || 10;
+//     const skip = (page - 1) * limit;
+
+//     // Check if user exists
+//     const user = await BlogService.getUserById(req.params.userId);
+//     if (!user) {
+//       return res.status(404).json({ message: "User not found" });
+//     }
+
+//     const blogs = await BlogService.getUserBlogs(req.params.userId, limit, skip);
+//     const totalBlogs = await BlogService.getUserBlogsCount(req.params.userId);
+//     const totalPages = Math.ceil(totalBlogs / limit);
+
+//     // Add 'liked' status for current user if authenticated
+//     const enrichedBlogs = blogs.map(blog => ({
+//       ...blog.toObject(),
+//       liked: req.user && blog.likes && blog.likes.some(likeId => likeId.toString() === req.user._id.toString())
+//     }));
+
+//     res.json({
+//       blogs: enrichedBlogs,
+//       user,
+//       pagination: {
+//         currentPage: page,
+//         totalPages,
+//         totalBlogs,
+//         hasNext: page < totalPages,
+//         hasPrev: page > 1
+//       }
+//     });
+//   } catch (error) {
+//     res.status(500).json({ message: error.message });
+//   }
+// });
+
 // Get blogs by user ID (public route for viewing other users' blogs)
 router.get("/user/:userId", async (req, res) => {
   try {
@@ -240,6 +288,13 @@ router.get("/user/:userId", async (req, res) => {
       return res.status(404).json({ message: "User not found" });
     }
 
+    // Fetch user's quizzes
+    const quizzes = await QuizAttempt.find({ user: req.params.userId })
+      .sort({ createdAt: -1 })
+      .select("_id quizDate score correctAnswers totalQuestions rank timeSpent")
+      .lean();
+
+    // Fetch user's blogs
     const blogs = await BlogService.getUserBlogs(req.params.userId, limit, skip);
     const totalBlogs = await BlogService.getUserBlogsCount(req.params.userId);
     const totalPages = Math.ceil(totalBlogs / limit);
@@ -250,8 +305,10 @@ router.get("/user/:userId", async (req, res) => {
       liked: req.user && blog.likes && blog.likes.some(likeId => likeId.toString() === req.user._id.toString())
     }));
 
+    // Send blogs + quizzes together
     res.json({
       blogs: enrichedBlogs,
+      quizzes,      // ✅ this is now included
       user,
       pagination: {
         currentPage: page,
