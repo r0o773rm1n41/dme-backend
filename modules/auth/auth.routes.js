@@ -40,6 +40,6 @@ router.delete("/account", authRequired, writeRateLimit, AuthController.deleteAcc
 router.get("/user/preferences", authRequired, AuthController.getUserPreferences);
 router.post("/user/preferences", authRequired, AuthController.updateUserPreferences);
 
-router.post("/refresh", AuthController.refreshToken);
+router.post("/refresh", authRateLimit, AuthController.refreshToken);
 
 export default router;

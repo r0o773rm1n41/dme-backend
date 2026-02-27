@@ -16,6 +16,7 @@ export async function verifySocketToken(token) {
     // Support string _id values by querying directly
     const user = await User.findOne({ _id: payload.uid }).select('-passwordHash');
     if (!user) return { valid: false, reason: 'user_not_found' };
+    if (user.isBlocked) return { valid: false, reason: 'user_blocked' };
     return { valid: true, user, payload };
   } catch (err) {
     if (err.name === 'TokenExpiredError') return { valid: false, reason: 'expired', expiredAt: err.expiredAt };

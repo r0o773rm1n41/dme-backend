@@ -15,7 +15,7 @@ import logger from './utils/logger.js';
 
 if (process.env.SENTRY_DSN) {
   Sentry.init({ dsn: process.env.SENTRY_DSN });
-  console.log('Sentry initialized');
+  // Sentry initialized
 }
 
 import express from 'express';
@@ -59,9 +59,9 @@ async function startServer() {
       if (typeof redisClient.connect === 'function') {
         await redisClient.connect();
       }
-      console.log('Redis ready');
+      // Redis ready
     } catch (err) {
-      console.warn('Redis unavailable, continuing locally');
+      // Redis unavailable, continuing locally
     }
 
     // Create HTTP server
@@ -129,12 +129,17 @@ async function startServer() {
       ipSockets.add(socket.id);
       socketEventCounts.set(socket.id, new Map());
 
-      console.log(`Socket connected: ${socket.user.name}`);
+      // Socket connected
 
       socket.on('join-quiz', async (quizDate) => {
         try {
           const auth = await revalidateSocketAuth(socket);
           if (!auth.valid) {
+            // If token is expiring soon, prompt frontend to refresh
+            if (auth.reason === 'token_expiring_soon' || auth.reason === 'expired') {
+              socket.emit('reauth', { message: 'Token expiring soon, please refresh.' });
+            }
+            // Always disconnect unauthorized or expired
             socket.disconnect(true);
             return;
           }
@@ -155,7 +160,9 @@ async function startServer() {
 
           socket.join(`quiz-${quizDate}`);
         } catch (err) {
-          console.error(err);
+          // Never leak internal error reasons
+          socket.emit('error', { message: 'Unauthorized' });
+          socket.disconnect(true);
         }
       });
 
@@ -175,12 +182,12 @@ async function startServer() {
           if (set.size === 0) socketConnections.delete(clientIP);
         }
 
-        console.log('Socket disconnected');
+        // Socket disconnected
       });
     });
 
     server.listen(PORT, () => {
-      console.log(`✅ Server running locally on http://localhost:${PORT}`);
+      // Server running locally
     });
 
     const shutdown = async () => {
@@ -197,7 +204,7 @@ async function startServer() {
     await recoverQuizAdvancement();
 
   } catch (error) {
-    console.error('❌ Failed to start server:', error);
+    // Failed to start server
     process.exit(1);
   }
 }

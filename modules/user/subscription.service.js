@@ -38,7 +38,7 @@ export async function createSubscription(userId, tier, paymentId) {
     });
 
     // Log the subscription purchase
-    console.log(`User ${userId} subscribed to ${tier} tier until ${expiresAt}`);
+    // User {userId} subscribed to {tier} tier until {expiresAt}
 
     return {
       success: true,
@@ -47,7 +47,7 @@ export async function createSubscription(userId, tier, paymentId) {
       features: tierInfo.features
     };
   } catch (error) {
-    console.error('Error creating subscription:', error);
+    // Error creating subscription
     throw error;
   }
 }
@@ -73,7 +73,7 @@ export async function renewSubscription(userId) {
       expiresAt: newExpiresAt
     };
   } catch (error) {
-    console.error('Error renewing subscription:', error);
+    // Error renewing subscription
     throw error;
   }
 }
@@ -92,7 +92,7 @@ export async function cancelSubscription(userId) {
 
     return { success: true, message: 'Subscription cancelled, downgraded to free tier' };
   } catch (error) {
-    console.error('Error cancelling subscription:', error);
+    // Error cancelling subscription
     throw error;
   }
 }
@@ -114,7 +114,7 @@ export async function getSubscriptionStatus(userId) {
       price: tierInfo.price
     };
   } catch (error) {
-    console.error('Error getting subscription status:', error);
+    // Error getting subscription status
     return null;
   }
 }

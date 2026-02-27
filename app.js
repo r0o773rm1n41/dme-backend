@@ -60,7 +60,7 @@ app.use(cors({
       return callback(null, true);
     }
 
-    console.warn(`Blocked CORS request from: ${origin}`);
+    // Blocked CORS request from: ${origin}
     return callback(new Error('Not allowed by CORS'));
   },
   credentials: true,
@@ -116,5 +116,36 @@ app.use("/api/reports", reportRoutes);
 if (process.env.SENTRY_DSN) {
   app.use(Sentry.Handlers.errorHandler());
 }
+
+
+// Global Error Handler (MUST BE LAST)
+app.use((err, req, res, next) => {
+  // [GLOBAL ERROR] (hidden in production)
+
+  const statusCode = err.status || err.statusCode || 500;
+
+  // Production-safe message
+  let message = "Something went wrong";
+  if (statusCode === 401) {
+    message = "Unauthorized";
+  } else if (statusCode === 403) {
+    message = "Forbidden";
+  } else if (statusCode === 400) {
+    message = "Bad Request";
+  }
+
+  if (process.env.NODE_ENV !== "production") {
+    // In development show real error
+    return res.status(statusCode).json({
+      message: err.message,
+      stack: err.stack
+    });
+  }
+
+  // In production hide internals
+  return res.status(statusCode).json({
+    message
+  });
+});
 
 export default app;

@@ -27,9 +27,9 @@ export async function sendEmailOTP(email, otp) {
     };
 
     await transporter.sendMail(mailOptions);
-    console.log(`OTP email sent to ${email}`);
+    // OTP email sent to {email}
   } catch (error) {
-    console.error('Failed to send OTP email:', error);
+    // Failed to send OTP email
     throw new Error('Failed to send OTP email');
   }
 }
@@ -49,9 +49,9 @@ export async function sendNotificationEmail(email, subject, message) {
     };
 
     await transporter.sendMail(mailOptions);
-    console.log(`Notification email sent to ${email}`);
+    // Notification email sent to {email}
   } catch (error) {
-    console.error('Failed to send notification email:', error);
+    // Failed to send notification email
     // Don't throw - notifications are not critical
   }
 }
@@ -82,9 +82,9 @@ export async function sendPaymentSuccessEmail(email, userName, quizDate, amount)
     };
 
     await transporter.sendMail(mailOptions);
-    console.log(`Payment success email sent to ${email}`);
+    // Payment success email sent to {email}
   } catch (error) {
-    console.error('Failed to send payment success email:', error);
+    // Failed to send payment success email
   }
 }
 
@@ -112,9 +112,9 @@ export async function sendQuizResultEmail(email, userName, quizDate, score, rank
     };
 
     await transporter.sendMail(mailOptions);
-    console.log(`Quiz result email sent to ${email}`);
+    // Quiz result email sent to {email}
   } catch (error) {
-    console.error('Failed to send quiz result email:', error);
+    // Failed to send quiz result email
   }
 }
 
@@ -142,8 +142,8 @@ export async function sendWeeklyDigestEmail(email, userName, weekStats) {
     };
 
     await transporter.sendMail(mailOptions);
-    console.log(`Weekly digest email sent to ${email}`);
+    // Weekly digest email sent to {email}
   } catch (error) {
-    console.error('Failed to send weekly digest email:', error);
+    // Failed to send weekly digest email
   }
 }

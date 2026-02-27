@@ -1,3 +1,14 @@
+// POST /logout
+export async function logout(req, res) {
+  // Clear cookies and invalidate refresh token in Redis
+  if (req.user && req.user._id) {
+    const redisClient = (await import('../../config/redis.js')).default;
+    await redisClient.del(`refreshToken:${req.user._id}`);
+  }
+  res.clearCookie('accessToken');
+  res.clearCookie('refreshToken');
+  res.json({ success: true, message: 'Logged out' });
+}
 // modules/auth/auth.controller.js
 import * as AuthService from "./auth.service.js";
 import cloudinary from "../../config/cloudinary.js";
@@ -15,6 +26,18 @@ export async function sendRegisterOtp(req, res) {
 export async function register(req, res) {
   try {
     const { user, tokens } = await AuthService.registerUser(req.body);
+    res.cookie("accessToken", tokens.accessToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: "Strict",
+      maxAge: 15 * 60 * 1000
+    });
+    res.cookie("refreshToken", tokens.refreshToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: "Strict",
+      maxAge: 7 * 24 * 60 * 60 * 1000
+    });
     res.json({
       user: {
         _id: user._id,
@@ -46,7 +69,22 @@ export async function register(req, res) {
 export async function login(req, res) {
   try {
     const { user, tokens } = await AuthService.loginUser(req.body);
-    res.json({
+    // Set tokens as HTTPOnly cookies
+    const isProduction = process.env.NODE_ENV === 'production';
+    res.cookie("accessToken", tokens.accessToken, {
+      httpOnly: true,
+      secure: isProduction,
+      sameSite: "Strict",
+      maxAge: 15 * 60 * 1000
+    });
+    res.cookie("refreshToken", tokens.refreshToken, {
+      httpOnly: true,
+      secure: isProduction,
+      sameSite: "Strict",
+      maxAge: 7 * 24 * 60 * 60 * 1000
+    });
+    // FINAL: Always include tokens in JSON response body for frontend
+    const responseBody = {
       user: {
         _id: user._id,
         name: user.name,
@@ -60,7 +98,8 @@ export async function login(req, res) {
       },
       accessToken: tokens.accessToken,
       refreshToken: tokens.refreshToken
-    });
+    };
+    res.json(responseBody);
   } catch (error) {
     res.status(400).json({ message: typeof error.message === 'string' ? error.message : 'An error occurred' });
   }
@@ -69,6 +108,20 @@ export async function login(req, res) {
 export async function adminLogin(req, res) {
   try {
     const { user, tokens } = await AuthService.adminLogin(req.body);
+    // Set tokens as HTTPOnly cookies
+    const isProduction = process.env.NODE_ENV === 'production';
+    res.cookie("accessToken", tokens.accessToken, {
+      httpOnly: true,
+      secure: isProduction,
+      sameSite: "Strict",
+      maxAge: 15 * 60 * 1000
+    });
+    res.cookie("refreshToken", tokens.refreshToken, {
+      httpOnly: true,
+      secure: isProduction,
+      sameSite: "Strict",
+      maxAge: 7 * 24 * 60 * 60 * 1000
+    });
     res.json({
       user: {
         _id: user._id,
@@ -78,9 +131,7 @@ export async function adminLogin(req, res) {
         phone: user.phone,
         email: user.email,
         role: user.role
-      },
-      accessToken: tokens.accessToken,
-      refreshToken: tokens.refreshToken
+      }
     });
   } catch (error) {
     res.status(400).json({ message: error.message });
@@ -122,16 +173,20 @@ export async function getCurrentUser(req, res) {
   }
 }
 
-export async function refreshToken(req, res) {
+export async function refreshToken(req, res, next) {
   try {
     const { refreshToken } = req.body;
     if (!refreshToken) {
-      return res.status(400).json({ message: "Refresh token required" });
+      const error = new Error("Unauthorized");
+      error.status = 401;
+      return next(error);
     }
     const tokens = await AuthService.refreshAccessToken(refreshToken);
     res.json(tokens);
   } catch (error) {
-    res.status(401).json({ message: error.message });
+    const err = new Error("Unauthorized");
+    err.status = 401;
+    return next(err);
   }
 }
 
@@ -184,20 +239,10 @@ export async function updateProfile(req, res) {
     // Handle profile image upload to Cloudinary
     if (req.file) {
       const result = await new Promise((resolve, reject) => {
-        const stream = cloudinary.uploader.upload_stream(
-          {
-            folder: 'profile-images',
-            public_id: `user_${req.user._id}_${Date.now()}`,
-            transformation: [
-              { width: 300, height: 300, crop: 'fill' },
-              { quality: 'auto' }
-            ]
-          },
-          (error, result) => {
-            if (error) reject(error);
-            else resolve(result);
-          }
-        );
+        const stream = cloudinary.uploader.upload_stream((error, result) => {
+          if (error) return reject(error);
+          resolve(result);
+        });
         stream.end(req.file.buffer);
       });
       profileImageUrl = result.secure_url;

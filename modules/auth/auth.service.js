@@ -2,51 +2,76 @@
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import User from "../user/user.model.js";
+
 import { generateOtp, verifyOtp } from "./otp.service.js";
 import { sendOTP } from "../../utils/sms.js";
 import { sendEmailOTP } from "../../utils/email.js";
+import redisClient from "../../config/redis.js";
+
 
 function signTokens(user) {
-  // Accept either a uid string or a user-like object. Only include `uid` when available
-  // Defensive: avoid the literal string 'undefined' as a uid (seen in some runs)
-  let rawId = (typeof user === 'string') ? user : (user && (user._id || user.userId || user.id || (user._doc && user._doc._id)));
-  const phone = (typeof user === 'object') ? user.phone : undefined;
-  const role = (typeof user === 'object') ? user.role : undefined;
+  // Only use _id for userId
+  const userId = String(user._id);
+  const phone = user.phone;
+  const role = user.role;
 
-  // If rawId is falsy or is the string 'undefined', fall back to phone if available
-  if (!rawId || String(rawId).toLowerCase() === 'undefined') {
-    rawId = phone || undefined;
-  }
-
-  const accessPayload = {};
-  if (rawId) accessPayload.uid = String(rawId);
+  const accessPayload = { uid: userId };
   if (phone) accessPayload.phone = phone;
   if (role) accessPayload.role = role;
 
   const accessToken = jwt.sign(accessPayload, process.env.JWT_SECRET, { expiresIn: '15m' });
 
-  const refreshPayload = {};
-  if (rawId) refreshPayload.uid = String(rawId);
+  const refreshPayload = { uid: userId };
   if (phone) refreshPayload.phone = phone;
 
   const refreshToken = jwt.sign(refreshPayload, process.env.JWT_REFRESH_SECRET, { expiresIn: '7d' });
+
+  // Store refresh token in Redis
+  if (redisClient && userId) {
+    redisClient.set(`refresh:${userId}`, refreshToken, { ex: 7 * 24 * 60 * 60 });
+  }
 
   return { accessToken, refreshToken };
 }
 
 export async function refreshAccessToken(refreshToken) {
   try {
+    // 1️⃣ Verify signature
     const payload = jwt.verify(refreshToken, process.env.JWT_REFRESH_SECRET);
-    const user = await User.findById(payload.uid);
-    if (!user) throw new Error("Invalid refresh token");
+    const userId = payload.uid;
 
+    // 2️⃣ Check Redis for stored token
+    const redisToken = await redisClient.get(`refresh:${userId}`);
+    if (!redisToken || redisToken !== refreshToken) {
+      // Reuse detected or invalid token: hard fail, delete stored token
+      await redisClient.del(`refresh:${userId}`);
+      throw new Error("Invalid or expired refresh token");
+    }
+
+    // 3️⃣ Find user
+    const user = await User.findById(userId);
+    if (!user) {
+      await redisClient.del(`refresh:${userId}`);
+      throw new Error("Invalid or expired refresh token");
+    }
+
+    // 4️⃣ Generate new tokens
     const newAccessToken = jwt.sign(
       { uid: user._id, role: user.role },
       process.env.JWT_SECRET,
       { expiresIn: "15m" }
     );
+    const newRefreshToken = jwt.sign(
+      { uid: user._id },
+      process.env.JWT_REFRESH_SECRET,
+      { expiresIn: "7d" }
+    );
 
-    return { accessToken: newAccessToken };
+    // 5️⃣ Overwrite Redis with new refresh token
+    await redisClient.set(`refresh:${userId}`, newRefreshToken, { ex: 7 * 24 * 60 * 60 });
+
+    // 6️⃣ Return both tokens
+    return { accessToken: newAccessToken, refreshToken: newRefreshToken };
   } catch (err) {
     throw new Error("Invalid or expired refresh token");
   }
@@ -105,9 +130,9 @@ export async function registerUser({ phone, email, otp, password, name, age, gen
     }
   }
 
-  // For development/testing - skip OTP verification
-  if (process.env.NODE_ENV === 'development' && !otp) {
-    // Skip OTP verification in development
+  // For development/testing - skip OTP verification only if ALLOW_OTP_BYPASS is true
+  if (process.env.ALLOW_OTP_BYPASS === "true" && !otp) {
+    // Skip OTP verification if explicitly allowed
   } else {
     const key = normalizedPhone
       ? `otp:register:phone:${normalizedPhone}`
@@ -158,9 +183,10 @@ export async function registerUser({ phone, email, otp, password, name, age, gen
     existing.isPhoneVerified = !!phone;
     existing.emailVerified = !!email;
     existing.otpMode = otpMode;
-    existing.profileCompleted = false;
+    // Server-side profile completion enforcement
+    existing.profileCompleted = isProfileComplete(existing);
     await existing.save();
-    const uid = String(existing._id || existing.userId || existing.id || (existing._doc && existing._doc._id));
+    const uid = String(existing._id);
     const tokens = signTokens({ _id: uid, phone: existing.phone, role: existing.role });
     return { user: existing, tokens };
   }
@@ -183,7 +209,11 @@ export async function registerUser({ phone, email, otp, password, name, age, gen
     profileCompleted: false // Will be set to true after profile completion
   });
 
-  const uid = String(user._id || user.userId || user.id || (user._doc && user._doc._id));
+  // Server-side profile completion enforcement
+  user.profileCompleted = isProfileComplete(user);
+  await user.save();
+
+  const uid = String(user._id);
   const tokens = signTokens({ _id: uid, phone: user.phone, role: user.role });
   return { user, tokens };
 }
@@ -292,7 +322,7 @@ export async function requestPasswordReset(phone) {
     try {
       await sendOTP(phone, otp);
     } catch (error) {
-      console.error('Failed to send password reset OTP SMS:', error);
+      // Failed to send password reset OTP SMS
       // Don't throw error here - OTP is still valid and stored
     }
   } else if (user.otpMode === "EMAIL") {
@@ -306,7 +336,7 @@ export async function requestPasswordReset(phone) {
     try {
       await sendEmailOTP(user.email, otp);
     } catch (error) {
-      console.error('Failed to send password reset OTP email:', error);
+      // Failed to send password reset OTP email
       // Don't throw error here - OTP is still valid and stored
     }
   } else {
@@ -376,7 +406,7 @@ export async function updateProfile(userId, updates) {
         // Field is already set and immutable - skip the update (don't change it)
         // But allow if the value is the same (no actual change)
         if (updates[field] !== user[field]) {
-          console.log(`Field ${field} is immutable and already set. Skipping update.`);
+          // Field {field} is immutable and already set. Skipping update.
           return; // Skip this field, continue with next
         }
       } else {
@@ -433,11 +463,46 @@ export async function deleteAccount(userId) {
   user.phone = null;
   user.email = null;
   user.fcmToken = null;
+  // Remove Cloudinary image if exists
+  if (user.profileImage) {
+    try {
+      const cloudinary = (await import('../../config/cloudinary.js')).default;
+      // Extract public_id from URL if possible
+      const match = user.profileImage.match(/\/v\d+\/([^\.\/]+)\./);
+      if (match && match[1]) {
+        await cloudinary.uploader.destroy(match[1]);
+      }
+    } catch (e) {
+      // Ignore cloudinary errors
+    }
+  }
   user.profileImage = null;
   await user.save();
 
-  // Note: We keep the user record for audit purposes but anonymize personal data
-  // Related data (payments, quiz attempts, etc.) should be handled by GDPR compliance features
+  // Cascade delete related data
+  const QuizProgress = (await import('../quiz/quizProgress.model.js')).default;
+  const QuizAttempt = (await import('../quiz/quizAttempt.model.js')).default;
+  const Payment = (await import('../payment/payment.model.js')).default;
+  const ReferralReward = (await import('../user/referralReward.model.js')).default;
+  const Report = (await import('../reports/report.model.js')).default;
+  const Notification = (await import('../notification/notification.service.js')).default;
+  const redisClient = (await import('../../config/redis.js')).default;
+
+  await QuizProgress.deleteMany({ user: user._id });
+  await QuizAttempt.deleteMany({ user: user._id });
+  await Payment.deleteMany({ user: user._id });
+  await ReferralReward.deleteMany({ $or: [{ referrer: user._id }, { referee: user._id }] });
+  await Report.deleteMany({ $or: [{ reporter: user._id }, { reportedUser: user._id }] });
+  // If you have a Notification model, delete notifications for this user
+  if (Notification && Notification.deleteMany) {
+    await Notification.deleteMany({ user: user._id });
+  }
+  // Remove refresh token from Redis
+  if (redisClient) {
+    await redisClient.del(`refresh:${user._id}`);
+  }
+
+  // TODO: If you have subscription logic, handle it here (e.g., mark as cancelled)
 
   return true;
 }

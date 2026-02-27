@@ -172,7 +172,7 @@ router.post('/upload-image', authRequired, upload.single('profileImage'), async 
       try {
         await cloudinary.uploader.destroy(user.profileImage);
       } catch (error) {
-        console.error('Failed to delete old profile image:', error);
+        // Failed to delete old profile image
       }
     }
 
@@ -186,7 +186,7 @@ router.post('/upload-image', authRequired, upload.single('profileImage'), async 
       try {
         fs.unlinkSync(req.file.path);
       } catch (error) {
-        console.error('Failed to delete local file:', error);
+        // Failed to delete local file
       }
     }
 
@@ -202,7 +202,7 @@ router.post('/upload-image', authRequired, upload.single('profileImage'), async 
       }
     });
   } catch (error) {
-    console.error('Profile image upload error:', error);
+    // Profile image upload error
     res.status(400).json({ message: error.message || 'Failed to upload profile image' });
   }
 });
