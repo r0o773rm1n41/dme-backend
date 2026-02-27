@@ -695,16 +695,31 @@ router.get("/users", roleRequired(["SUPER_ADMIN"]), async (req, res) => {
     res.set('Pragma', 'no-cache');
     res.set('Expires', '0');
     
+    const { page = 1, limit = 20 } = req.query;
+    const skip = (page - 1) * limit;
+    
     console.log('📍 Starting user fetch from database');
-    const users = await User.find({}, '-password').sort({ createdAt: -1 }).lean();
-    console.log(`📊 Found ${users.length} users in database`);
+    
+    // Get all users including admins
+    const totalUsers = await User.countDocuments({});
+    console.log(`📊 Total users in database: ${totalUsers}`);
+    
+    const users = await User.find({})
+      .select('-passwordHash')
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(parseInt(limit))
+      .lean();
+    
+    console.log(`📊 Found ${users.length} users in current page`);
     
     // Add classGrade field to each user
     const usersData = users.map(user => {
       let classGrade = 'N/A';
       
       // Log raw class value and type
-      console.log(`\n👤 Processing: ${user.name}`);
+      console.log(`\n👤 Processing: ${user.name || 'Unknown'}`);
+      console.log(`   Role: ${user.role}`);
       console.log(`   class value: "${user.class}", type: ${typeof user.class}`);
       
       // Determine classGrade based on class value
@@ -731,15 +746,15 @@ router.get("/users", roleRequired(["SUPER_ADMIN"]), async (req, res) => {
     });
     
     console.log(`\n✅ All ${usersData.length} users processed successfully`);
-    console.log(`📤 Sending response with classGrade fields`);
+    console.log(`📤 Sending response with ${usersData.length} users`);
     
     res.json({ 
       users: usersData,
       pagination: {
-        page: 1,
-        limit: 20,
-        total: users.length,
-        pages: Math.ceil(users.length / 20)
+        page: parseInt(page),
+        limit: parseInt(limit),
+        total: totalUsers,
+        pages: Math.ceil(totalUsers / limit)
       }
     });
   } catch (error) {

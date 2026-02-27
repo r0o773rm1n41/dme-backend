@@ -122,7 +122,8 @@ export async function adminLogin(req, res) {
       sameSite: "Strict",
       maxAge: 7 * 24 * 60 * 60 * 1000
     });
-    res.json({
+    // FINAL: Always include tokens in JSON response body for frontend
+    const responseBody = {
       user: {
         _id: user._id,
         name: user.name,
@@ -131,8 +132,11 @@ export async function adminLogin(req, res) {
         phone: user.phone,
         email: user.email,
         role: user.role
-      }
-    });
+      },
+      accessToken: tokens.accessToken,
+      refreshToken: tokens.refreshToken
+    };
+    res.json(responseBody);
   } catch (error) {
     res.status(400).json({ message: error.message });
   }
