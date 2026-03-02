@@ -234,11 +234,18 @@ export async function completeReferral(user) {
   }
 }
 
-export async function createOrder(userId) {
+export async function createOrder(userId, { parentalConsent } = {}) {
   const quizDate = todayIST();
   const user = await User.findById(userId);
   if (!user) {
     throw new Error('User not found');
+  }
+  // age enforcement
+  if (user.age && user.age < 13) {
+    throw new Error('Users must be at least 13 years old to participate');
+  }
+  if (user.age && user.age < 18 && !parentalConsent) {
+    throw new Error('Parental consent is required for users under 18');
   }
 
   // Before allowing any kind of entry (credit or paid), enforce cutoff and quiz state

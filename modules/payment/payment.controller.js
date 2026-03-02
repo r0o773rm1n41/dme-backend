@@ -3,7 +3,9 @@ import * as PaymentService from "./payment.service.js";
 
 export async function createOrder(req, res) {
   try {
-    const result = await PaymentService.createOrder(req.user._id);
+    // parentalConsent is provided by frontend when user is under age limit
+    const { parentalConsent } = req.body;
+    const result = await PaymentService.createOrder(req.user._id, { parentalConsent });
     res.json(result);
   } catch (error) {
     res.status(400).json({ message: error.message });

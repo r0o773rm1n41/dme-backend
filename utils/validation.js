@@ -155,20 +155,9 @@ export const authSchemas = {
 
 // Payment validation schemas
 export const paymentSchemas = {
+  // createOrder payload is mostly ignored by server; only parental consent flag is relevant now.
   createOrder: Joi.object({
-    amount: Joi.number()
-      .integer()
-      .min(100) // ₹1 minimum
-      .max(100000) // ₹1000 maximum
-      .required(),
-
-    currency: Joi.string()
-      .valid('INR')
-      .default('INR'),
-
-    quizDate: Joi.string()
-      .pattern(/^\d{4}-\d{2}-\d{2}$/)
-      .required()
+    parentalConsent: Joi.boolean().optional()
   }),
 
   verifyPayment: Joi.object({
