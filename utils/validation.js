@@ -92,8 +92,11 @@ export const authSchemas = {
       .pattern(/^\d{6}$/)
       .required(),
 
-    deviceId: Joi.string()
-      .optional()
+    // deviceId: Joi.string()
+    //   .optional()
+deviceId: Joi.string()
+  .allow(null, '')
+  .optional()
   }),
 
   login: Joi.object({
