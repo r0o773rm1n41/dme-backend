@@ -11,7 +11,7 @@ const TOKEN_EXPIRY_TOLERANCE_MS = 60000; // Disconnect 1 min before actual expir
 export async function verifySocketToken(token) {
   if (!token) return { valid: false, reason: 'no_token' };
   try {
-    const payload = jwt.verify(token, JWT_SECRET);
+    const payload = jwt.verify(token, JWT_SECRET, { algorithms: ['HS256'] });
     if (!payload.uid) return { valid: false, reason: 'invalid_payload' };
     // Support string _id values by querying directly
     const user = await User.findOne({ _id: payload.uid }).select('-passwordHash');

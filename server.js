@@ -93,7 +93,7 @@ async function startServer() {
 
         if (!token) return next(new Error('Authentication required'));
 
-        const payload = jwt.verify(token, process.env.JWT_SECRET);
+        const payload = jwt.verify(token, process.env.JWT_SECRET, { algorithms: ['HS256'] });
         // Use findOne to support string _id values (seeded test users)
         const user = await User.findOne({ _id: payload.uid }).select('-passwordHash');
 

@@ -37,7 +37,7 @@ function signTokens(user) {
 export async function refreshAccessToken(refreshToken) {
   try {
     // 1️⃣ Verify signature
-    const payload = jwt.verify(refreshToken, process.env.JWT_REFRESH_SECRET);
+    const payload = jwt.verify(refreshToken, process.env.JWT_REFRESH_SECRET, { algorithms: ['HS256'] });
     const userId = payload.uid;
 
     // 2️⃣ Check Redis for stored token

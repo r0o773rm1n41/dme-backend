@@ -28,6 +28,7 @@ router.post("/password/otp", authRateLimit, validate(authSchemas.verifyOtp), Aut
 // Auth endpoints - auth rate limiting (5 attempts per 15 minutes)
 router.post("/register", authRateLimit, validate(authSchemas.register), AuthController.register);
 router.post("/login", authRateLimit, validate(authSchemas.login), AuthController.login);
+router.post("/logout", authRequired, AuthController.logout);
 router.post("/admin/login", authRateLimit, AuthController.adminLogin);
 router.post("/password/reset", authRateLimit, AuthController.resetPassword);
 
@@ -40,6 +41,7 @@ router.delete("/account", authRequired, writeRateLimit, AuthController.deleteAcc
 router.get("/user/preferences", authRequired, AuthController.getUserPreferences);
 router.post("/user/preferences", authRequired, AuthController.updateUserPreferences);
 
-router.post("/refresh", authRateLimit, AuthController.refreshToken);
+// router.post("/refresh", authRateLimit, AuthController.refreshToken);
+router.post("/refresh", authRateLimit, writeRateLimit, AuthController.refreshToken);
 
 export default router;

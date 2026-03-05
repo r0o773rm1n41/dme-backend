@@ -28,8 +28,59 @@ import User from "../modules/user/user.model.js";
 import Payment from "../modules/payment/payment.model.js";
 
 
+// export async function authRequired(req, res, next) {
+//   try {
+//     const token =
+//       req.headers.authorization?.split(" ")[1] ||
+//       req.cookies?.accessToken;
+
+//     if (!token) {
+//       return res.status(401).json({ message: "Auth required" });
+//     }
+
+//     let payload;
+//     try {
+//       payload = jwt.verify(token, process.env.JWT_SECRET);
+//     } catch (jwtError) {
+//       if (jwtError.name === 'TokenExpiredError') {
+//         return res.status(401).json({ 
+//           message: "Token expired", 
+//           code: "TOKEN_EXPIRED",
+//           expiredAt: jwtError.expiredAt 
+//         });
+//       }
+//       return res.status(401).json({ message: "Invalid or expired token" });
+//     }
+
+//     let user = null;
+//     if (payload.uid) {
+//       user = await User.findById(payload.uid).select("-passwordHash");
+//     } else if (payload.phone) {
+//       let phone = payload.phone.replace(/[^0-9]/g, '');
+//       if (phone.length === 10) phone = '91' + phone;
+//       user = await User.findOne({ phone }).select("-passwordHash");
+//     }
+
+//     if (!user) {
+//       return res.status(401).json({ message: "Invalid user" });
+//     }
+//     if (user.isBlocked) {
+//       return res.status(403).json({ message: "User is blocked" });
+//     }
+//     req.user = user;
+//     next();
+//   } catch (err) {
+//     return res.status(401).json({ message: "Invalid or expired token" });
+//   }
+// }
 export async function authRequired(req, res, next) {
   try {
+    // ✅ Prevent browser caching for protected routes
+    res.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+    res.set('Pragma', 'no-cache');
+    res.set('Expires', '0');
+    res.set('Surrogate-Control', 'no-store');
+
     const token =
       req.headers.authorization?.split(" ")[1] ||
       req.cookies?.accessToken;
@@ -40,7 +91,7 @@ export async function authRequired(req, res, next) {
 
     let payload;
     try {
-      payload = jwt.verify(token, process.env.JWT_SECRET);
+      payload = jwt.verify(token, process.env.JWT_SECRET, { algorithms: ['HS256'] });
     } catch (jwtError) {
       if (jwtError.name === 'TokenExpiredError') {
         return res.status(401).json({ 
@@ -67,6 +118,7 @@ export async function authRequired(req, res, next) {
     if (user.isBlocked) {
       return res.status(403).json({ message: "User is blocked" });
     }
+
     req.user = user;
     next();
   } catch (err) {

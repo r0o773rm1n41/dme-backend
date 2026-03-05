@@ -1,13 +1,45 @@
+// modules/auth/auth.controller.js
+// POST /logout
+// export async function logout(req, res) {
+//   // Clear cookies and invalidate refresh token in Redis
+//   if (req.user && req.user._id) {
+//     const redisClient = (await import('../../config/redis.js')).default;
+//     // await redisClient.del(`refreshToken:${req.user._id}`);
+//     await redisClient.del(`refresh:${req.user._id}`);
+//   }
+//   res.clearCookie('accessToken');
+//   res.clearCookie('refreshToken');
+//   res.json({ success: true, message: 'Logged out' });
+// }
 // POST /logout
 export async function logout(req, res) {
-  // Clear cookies and invalidate refresh token in Redis
-  if (req.user && req.user._id) {
+  try {
     const redisClient = (await import('../../config/redis.js')).default;
-    await redisClient.del(`refreshToken:${req.user._id}`);
+
+    if (req.user && req.user._id) {
+      await redisClient.del(`refresh:${req.user._id}`);
+    }
+
+    const isProduction = process.env.NODE_ENV === "production";
+
+    res.clearCookie("accessToken", {
+      httpOnly: true,
+      secure: isProduction,
+      sameSite: "Strict"
+    });
+
+    res.clearCookie("refreshToken", {
+      httpOnly: true,
+      secure: isProduction,
+      sameSite: "Strict"
+    });
+
+    res.json({ success: true, message: "Logged out successfully" });
+
+  } catch (error) {
+    console.error("Logout error:", error);
+    res.status(500).json({ message: "Logout failed" });
   }
-  res.clearCookie('accessToken');
-  res.clearCookie('refreshToken');
-  res.json({ success: true, message: 'Logged out' });
 }
 // modules/auth/auth.controller.js
 import * as AuthService from "./auth.service.js";
